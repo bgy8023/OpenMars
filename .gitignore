@@ -117,6 +117,8 @@ OpenHarness/
 # 运行脚本
 run_full_pipeline.py
 test_*.py
+# 单元测试目录例外：tests/ 下的测试文件随仓库提交（上面的 test_*.py 仅针对根目录散落脚本）
+!tests/*.py
 run_builtin_core_mock.py
 cyber_harness.py
 start_ultimate.command
@@ -128,3 +130,6 @@ test_skill_loader.py
 # Novel settings
 panel_settings.json
 novel_settings/
+
+# 面板生成结果回显快照目录（运行时产物，不入库）
+temp/
