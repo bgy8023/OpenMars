@@ -4,6 +4,7 @@ import sqlite3
 import time
 import threading
 from datetime import datetime
+from urllib.parse import quote
 
 import requests
 from openmars_core.config import get_config
@@ -84,7 +85,9 @@ def send_mobile_alert(title, content, is_error=False):
         full_content = f"【赛博印钞机Pro】{content}"
 
         if "bark" in webhook_url.lower():
-            requests.get(f"{webhook_url}/{full_title}/{full_content}", timeout=5)
+            # Bark 走 GET 路径拼接，标题/内容必须 URL 编码——告警文本常含换行（门禁违规清单/异常栈），
+            # 不编码会直接 InvalidURL，最关键的失败推送反而发不出去
+            requests.get(f"{webhook_url}/{quote(full_title, safe='')}/{quote(full_content, safe='')}", timeout=5)
         elif "ftqq" in webhook_url.lower() or "sct" in webhook_url.lower():
             requests.post(webhook_url, data={"title": full_title, "desp": full_content}, timeout=5)
         else:
@@ -404,12 +407,23 @@ def generate_chapter_full(chapter_num, target_words, custom_prompt, novel_name="
                     f"{preview}（详见运行报告，供人工复核）"
                 )
 
-            # 先落基础记忆行（摘要/大纲/排雷/结尾摘录列），确保后续抽取失败时本章记忆也已入库
+            # 先落基础记忆行（摘要/大纲/排雷/结尾摘录列），确保后续抽取失败时本章记忆也已入库。
+            # 记忆写入失败不得拖累交付：正文已生成、门禁已跑完，必须照常回显/落报告，只告警留痕（拒绝黑洞章）
             # 注意：记忆与运行报告用的是干净正文 content，显式标注块只进交付内容 deliver_content
             summary = content[:150] + "..." if len(content) > 150 else content
-            memory.safe_update(chapter_num, summary, len(content), content,
-                               outline=result.get("outline"), review=result.get("review"),
-                               ending_excerpt=content[-ENDING_EXCERPT_CHARS:])
+            memory_write_error = ""
+            try:
+                memory.safe_update(chapter_num, summary, len(content), content,
+                                   outline=result.get("outline"), review=result.get("review"),
+                                   ending_excerpt=content[-ENDING_EXCERPT_CHARS:])
+            except Exception as mem_err:
+                memory_write_error = str(mem_err)[:200]
+                logger.error(f"🚨 第{chapter_num}章记忆写入失败，正文照常交付：{memory_write_error}")
+                send_mobile_alert(
+                    f"第{chapter_num}章记忆写入失败",
+                    f"{memory_write_error}（正文照常交付，请检查磁盘/数据库后手动补录）",
+                    is_error=True
+                )
             # 写后回写闭环（NovelClaw/MuMuAINovel模式）：抽取→台账/角色/摘要回写，失败告警不阻断交付
             _writeback_memory(memory, engine, chapter_num, content)
             send_mobile_alert(
@@ -441,6 +455,7 @@ def generate_chapter_full(chapter_num, target_words, custom_prompt, novel_name="
                          "enforced": gate_enforced},
                 "rewrite_rounds": rewrite_rounds,
                 "consistency_review": consistency,
+                "memory_write": {"ok": not memory_write_error, "error": memory_write_error},
                 "tokens": _summarize_run_tokens(chapter_num, ledger_before, gate_config),
                 "alerts": _alerts_since(alert_mark),
                 "delivery": {

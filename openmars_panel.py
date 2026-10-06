@@ -5,6 +5,7 @@
 集成：P0级Token黑洞防护、工业级同步引擎、SQLite记忆宫殿、全链路告警
 """
 import os
+import html
 import json
 import time
 import sqlite3
@@ -350,9 +351,10 @@ with st.sidebar:
     # 大模型配置
     st.markdown('<p class="sub-header">🤖 大模型配置</p>', unsafe_allow_html=True)
     with st.expander("查看/修改模型配置", expanded=False):
+        from openmars_core.config import DEFAULT_LLM_BASE_URL, DEFAULT_LLM_MODEL_NAME
         current_api_key = os.getenv("LLM_API_KEY", "")
-        current_base_url = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-        current_model = os.getenv("LLM_MODEL_NAME", "gpt-4o")
+        current_base_url = os.getenv("LLM_BASE_URL", DEFAULT_LLM_BASE_URL)
+        current_model = os.getenv("LLM_MODEL_NAME", DEFAULT_LLM_MODEL_NAME)
         webhook_url = os.getenv("WEBHOOK_URL", "")
         
         new_api_key = st.text_input("API Key", value=current_api_key, type="password")
@@ -397,7 +399,7 @@ with st.sidebar:
                         import openai
                         test_client = openai.OpenAI(
                             api_key=new_api_key.strip(),
-                            base_url=new_base_url.strip() or "https://api.deepseek.com/v1",
+                            base_url=new_base_url.strip() or DEFAULT_LLM_BASE_URL,
                             timeout=15,
                         )
                         test_client.chat.completions.create(
@@ -613,7 +615,8 @@ with tab1:
     if st.session_state.current_output:
         st.markdown('<p class="sub-header">📖 最终正文</p>', unsafe_allow_html=True)
         with st.container():
-            st.markdown(f'<div class="result-box">{st.session_state.current_output}</div>', unsafe_allow_html=True)
+            # html.escape：生成正文是模型输出，属不可信数据，禁止以 HTML 原样嵌入面板（防 prompt 注入 XSS）
+            st.markdown(f'<div class="result-box">{html.escape(st.session_state.current_output)}</div>', unsafe_allow_html=True)
         
         if st.session_state.generation_result:
             res = st.session_state.generation_result
@@ -802,10 +805,11 @@ with tab4:
 
     st.markdown("### 📝 快速上手")
     st.markdown("""
-    1. **配置小说设定**：在novel_settings/你的小说名/目录下，添加3个核心文件：
+    1. **配置小说设定**：在novel_settings/你的小说名/目录下，添加4个核心文件（与 README「小说设定文件」表一致）：
        - 00-全本大纲.md：全本剧情大纲
-       - 01-人物档案.md：主角、配角人设
+       - 01-人物档案.md：主角、配角人设与核心设定
        - 02-世界观设定.md：世界观、背景、规则
+       - 03-番茄审核铁则.md：平台审核红线（推荐配置，缺失时自动使用内置兜底铁则）
     2. **配置大模型**：在侧边栏「🤖 大模型配置」中填写你的API Key、Base URL、模型名称
     3. **一键生成**：点击「一键躺平生成」，系统会自动完成全流程创作
     """)

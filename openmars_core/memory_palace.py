@@ -664,14 +664,17 @@ class SQLiteMemoryPalace:
                 raise RuntimeError("摘要压缩调用返回空内容")
             if len(compressed) > GLOBAL_SUMMARY_BUDGET:
                 compressed = compressed[:GLOBAL_SUMMARY_BUDGET]
-            # 摘要与覆盖游标同一事务写入，保证「摘要-游标」一致
+            # 摘要与覆盖游标同一事务写入，保证「摘要-游标」一致。
+            # 游标只推进到本次真正并入的最大章号：单次最多并入 SUMMARY_NEW_CHAPTERS_MAX 章，
+            # 未并入的中间章节留给下次压缩——旧库批量迁移/状态重建时若直接跳到 chapter_num，中间章节将永久丢出摘要
+            covered_new = max(num for num, _ in rows)
             with self._connect() as conn:
                 self.set_state(GLOBAL_SUMMARY_KEY, compressed,
-                               updated_chapter=chapter_num, source=SOURCE_AUTO, _conn=conn)
-                self.set_state(SUMMARY_UPTO_KEY, str(chapter_num),
-                               updated_chapter=chapter_num, source=SOURCE_AUTO, _conn=conn)
+                               updated_chapter=covered_new, source=SOURCE_AUTO, _conn=conn)
+                self.set_state(SUMMARY_UPTO_KEY, str(covered_new),
+                               updated_chapter=covered_new, source=SOURCE_AUTO, _conn=conn)
                 conn.commit()
-            logger.info(f"✅ 全局摘要已滚动更新至第{chapter_num}章（{len(compressed)}字）")
+            logger.info(f"✅ 全局摘要已滚动更新至第{covered_new}章（{len(compressed)}字）")
             return True, compressed
         except Exception as e:
             # 压缩失败：旧摘要原样保留（set_state 未执行），告警由调用方完成

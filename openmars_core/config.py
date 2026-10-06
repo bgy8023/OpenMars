@@ -47,6 +47,12 @@ def _to_bool(value: str, default: bool) -> bool:
     return default
 
 
+# 开箱默认指向智谱 GLM-4-Flash（永久免费），与 .env.example 模板、README 推荐三处统一；
+# 面板等业务代码取默认值一律引用这两个常量，禁止各写各的（历史坑：面板默认 openai.com，配智谱 key 直接 401）
+DEFAULT_LLM_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+DEFAULT_LLM_MODEL_NAME = "glm-4-flash"
+
+
 @dataclass
 class AppConfig:
     """应用配置：13 项收口在本类，LLM_EXTRACT_MODEL_NAME 由 cyber_printer_ultimate.py 直读，
@@ -54,8 +60,8 @@ class AppConfig:
 
     # ---- 大模型连接（活变量） ----
     llm_api_key: str = ""                              # 大模型 API Key
-    llm_base_url: str = "https://api.deepseek.com/v1"  # 大模型接口地址（绝大多数服务商以 /v1 结尾）
-    llm_model_name: str = "deepseek-chat"              # 模型名称
+    llm_base_url: str = DEFAULT_LLM_BASE_URL  # 大模型接口地址（绝大多数服务商以 /v1 或 /v4 结尾）
+    llm_model_name: str = DEFAULT_LLM_MODEL_NAME       # 模型名称
     max_retry: int = 3                                 # 生成最大重试次数
     webhook_url: str = ""                              # 移动端告警 Webhook（Bark/Server酱/飞书/钉钉）
 
@@ -78,8 +84,8 @@ class AppConfig:
         """实时读取环境变量构造配置（不做进程级缓存，保证保存 .env 后立即生效）"""
         return cls(
             llm_api_key=os.getenv("LLM_API_KEY", ""),
-            llm_base_url=os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1"),
-            llm_model_name=os.getenv("LLM_MODEL_NAME", "deepseek-chat"),
+            llm_base_url=os.getenv("LLM_BASE_URL", DEFAULT_LLM_BASE_URL),
+            llm_model_name=os.getenv("LLM_MODEL_NAME", DEFAULT_LLM_MODEL_NAME),
             max_retry=_to_int(os.getenv("MAX_RETRY", "3"), 3),
             webhook_url=os.getenv("WEBHOOK_URL", ""),
             llm_temperature=_to_float(os.getenv("LLM_TEMPERATURE", "0.7"), 0.7),

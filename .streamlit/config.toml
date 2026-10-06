@@ -12,6 +12,6 @@ showErrorDetails = true
 port = 8501
 headless = false
 enableCORS = false
-enableXsrfProtection = false
+enableXsrfProtection = true  # 面板嵌有模型输出，XSRF 防护保持开启（局域网/共享部署的底线防护）
 maxUploadSize = 200
 maxMessageSize = 200
